@@ -13,10 +13,12 @@ ESTADO_ABC EQU 0x20
 ; abecedario que se va a desplegar, por ejemplo en la posicion inicial su valor
 ;sera 1 y inidica que se esta seleccionando la letra a, por ejemplo si fuera
 ; este valor igual a 2 indicaria que se esta seleccionando la letra b
-INTENTO EQU 0x21
-RS EQU 0x03
-E EQU 0x02
-ANT_ESTADO_ABC EQU 0x22
+INTENTO EQU 0x21; Guarda la cantidad de errores que puede cometer al adivinar
+RS EQU 0x03;Hace referencia al pin de RS de la pantalla LCD
+E EQU 0x02;Hace referencia al pin de RS de la pantalla LCD
+ANT_ESTADO_ABC EQU 0x22; Guarda un valor se utliza para no entrar a un ciclo 
+;infinito
+;POSX se guardan el valor de la letra a adivinar
 POS1 EQU 0x23
 POS2 EQU 0x24
 POS3 EQU 0x25
@@ -33,47 +35,52 @@ POS13 EQU 0x2F
 POS14 EQU 0x30
 POS15 EQU 0x31
 POS16 EQU 0x32
-TOTALDELETRAS EQU 0x33
+TOTALDELETRAS EQU 0x33;longitud de la palabra
 INSERTAOADIVINA EQU 0x34;// Estado donde mencina si se esta introduciendo la
 ;palabra o se esta adiviando la palabra
-CHECAPOST EQU 0x34
-COMP EQU 0x35
-ACIERTA EQU 0x36
-EPOS1 EQU 0x37
-EPOS2 EQU 0x38
-EPOS3 EQU 0x39
-EPOS4 EQU 0x3A
-EPOS5 EQU 0x3B
-EPOS6 EQU 0x3C
-EPOS7 EQU 0x3D
-EPOS8 EQU 0x3E
-EPOS9 EQU 0x3F
-EPOS10 EQU 0x40
-EPOS11 EQU 0x41
-EPOS12 EQU 0x42
-EPOS13 EQU 0x43
-EPOS14 EQU 0x44
-EPOS15 EQU 0x45
-EPOS16 EQU 0x46
+CHECAPOST EQU 0x34;Variable que tomas los valores de POS1 se utliza para entrar
+; en un ciclo por lo que se guarda un valor POSX 
+COMP EQU 0x36;Variable que tomas los valores se utliza para entrar en un ciclo
+ACIERTA EQU 0x37; ES 1 si acierta 
+; Registros valen 1 si ya se adivino la letra de la palabra
+EPOS1 EQU 0x38
+EPOS2 EQU 0x39
+EPOS3 EQU 0x3A
+EPOS4 EQU 0x3B
+EPOS5 EQU 0x3C
+EPOS6 EQU 0x3D
+EPOS7 EQU 0x3E
+EPOS8 EQU 0x3F
+EPOS9 EQU 0x40
+EPOS10 EQU 0x41
+EPOS11 EQU 0x42
+EPOS12 EQU 0x43
+EPOS13 EQU 0x44
+EPOS14 EQU 0x45
+EPOS15 EQU 0x46
+EPOS16 EQU 0x47
+ADIVINATOTAL EQU 0x48; si adivina es diferente a 0
 ORG 0; Inicia pograma en 0 donde es el stack pointer 
 goto POGRAMA
-ORG 4
+ORG 4; Interrupcion
 goto INTER
  
-INTER 
-btfsc PORTB,7
+INTER; Comienzan las interrupciones
+btfsc PORTB,7; se presiono Izquierda?
 call IZQUIERDA
-btfsc PORTB,6
+btfsc PORTB,6; se presiono Derecha?
 call DERECHA
-btfsc PORTB,5
+btfsc PORTB,5; se presiono selecion?
 call SELECCION
-btfsc PORTB,4
+btfsc PORTB,4; se presiono cambio de modo?
 call ADIVINAR
-bsf INTCON, RBIE
-bcf INTCON, RBIF
-retfie
+bsf INTCON, RBIE; se activa interrupcion extena por los pines del puertob
+bcf INTCON, RBIF; se apaga bandera
+retfie; regreso al pograma principal
 
 IZQUIERDA
+; Si es 1 se cambia a 26 de A a Z
+; Si no se resta 1 al estado del Abecedario
 bcf INTCON, RBIF
 movlw D'1'
 subwf ESTADO_ABC,0
@@ -89,6 +96,8 @@ subwf ESTADO_ABC,1
 return
 
 DERECHA
+; Si es 26 se cambia a 1 de Z a A
+; Si no se suma 1 al estado del Abecedario 
 bcf INTCON, RBIF
 movlw D'26'
 subwf ESTADO_ABC,0
@@ -104,30 +113,67 @@ addwf ESTADO_ABC,1
 return
  
 SELECCION
+; Hay dos modos de selecion cuando se selecciona la palabra o cuando se adivina
 bcf STATUS,Z
 movlw D'1';
 subwf INSERTAOADIVINA,0
 btfss STATUS,Z
 goto ADELANTE
+clrf ADIVINATOTAL
 bcf STATUS,Z
-goto SEGUNDAADIVINAR
+goto SEGUNDAADIVINAR; va a impeimir la segunda linea y verificar si acerto
 REGRESO5
 clrf ANT_ESTADO_ABC
 
 bcf STATUS,Z
 movlw D'1';
-subwf ACIERTA,0
+subwf ADIVINATOTAL,0; Si adivina sus intentos quedan como estan
 btfsc STATUS,Z
-goto DESPUESDEGUARDAR
+return
  
- 
+bcf STATUS,Z 
 movlw D'1';
-subwf INTENTO,1 
+subwf INTENTO,1 ; si no adivina se le quita un intento
+btfss STATUS,Z 
+return 
+
  
-goto DESPUESDEGUARDAR
+bcf STATUS,Z 
+movlw D'0';
+subwf INTENTO,0; si los intestos son ceros imprime que ha perdido
+btfss STATUS,Z 
+return
+
+bcf PORTB,RS
+movlw b'10000000'
+movwf PORTD
+bsf PORTB,E
+bcf PORTB,E
+bsf PORTB,RS
+call RETARDOLARGO
+call lh
+call la
+call ls
+call lvacio
+call lp
+call le
+call lr
+call ld
+call li
+call ld
+call lo
+call lvacio
+call lvacio
+call lvacio
+call lvacio
+call lvacio
+ fin
+ goto fin
  
+ return
  
-ADELANTE
+ADELANTE; En modo insertar palabra 
+; se guarda letra en el registro correcto
 bcf INTCON, RBIF
 movlw D'1' 
 addwf TOTALDELETRAS,1
@@ -312,7 +358,7 @@ movfw ESTADO_ABC
 movwf POS16 
 goto ADIVINAR  
  
-ADIVINAR
+ADIVINAR; Se activa modo adivinar
 bcf INTCON, RBIF 
 movlw d'1'
 movwf INSERTAOADIVINA
@@ -320,14 +366,15 @@ bcf STATUS,RP1
 bsf STATUS,RP0;Banco 1
 movlw b'11100000'
 movwf IOCB; Registro de eleccion de la interrucion por cambio de nivel del puerto B
+;se desactiva la interrupcion por ese pin
 bcf STATUS,RP1
 bcf STATUS,RP0;Banco 1
-goto borrarletras
+goto borrarletras; borra las letras y pone guiones
 despuesdeborrarletras
 bcf STATUS,Z
 return
  
-borrarletras
+borrarletras; borra las letras y pone guiones
 bcf PORTB,RS
 movlw b'11000000'
 movwf PORTD
@@ -423,31 +470,31 @@ goto despuesdeborrarletras
  
  
  
-POGRAMA
+POGRAMA; incio de pograma
 bcf STATUS,RP1
 bsf STATUS,RP0;Banco 1
 clrf TRISA
 clrf TRISC
 clrf TRISD
-clrf TRISE
+clrf TRISE; como salidas
 movlw b'11110000'
 movwf TRISB
 movlw b'11110000'
 movwf IOCB; Registro de eleccion de la interrucion por cambio de nivel del puerto B
 movlw b'10000010'
-movwf OPTION_REG
+movwf OPTION_REG; para futuros retardos
 bsf STATUS,RP1
 bsf STATUS,RP0;Banco 3
 clrf ANSELH
-clrf ANSEL
+clrf ANSEL; entradas digitales
 bcf STATUS,RP1
 bcf STATUS,RP0;Banco 0 
 clrf PORTA
 clrf PORTC
 clrf PORTD
 clrf PORTE
-clrf PORTB
-movlw D'7'
+clrf PORTB; se limpian puertos 
+movlw D'7'; total de intentos
 movwf INTENTO 
  
 clrf TOTALDELETRAS  
@@ -483,7 +530,7 @@ clrf EPOS12
 clrf EPOS13 
 clrf EPOS14 
 clrf EPOS15 
-clrf EPOS16 
+clrf EPOS16 ;se liampian registros
 movlw b'00111000';//////Prender LCD
 movwf PORTD
 bsf PORTB, E
@@ -501,16 +548,16 @@ bcf PORTB, E
 call RETARDO
 bsf PORTB, RS
 
-bsf INTCON, GIE
-bsf INTCON, RBIE
-bcf INTCON, RBIF
+bsf INTCON, GIE; se activa interrupcion global
+bsf INTCON, RBIE; se activa interrucion ext por el puerto B
+bcf INTCON, RBIF; se liampia bandera
 
 movlw D'1'; el pograma empieza apunta a la letra a  
 movwf ESTADO_ABC 
 movlw D'0'
 movwf ANT_ESTADO_ABC
  
-espera
+espera; parte de espera de la interrupcion
 call RETARDOLARGO
 bcf INTCON, RBIF
 bsf INTCON, RBIE
@@ -522,7 +569,7 @@ goto COMPARA
 bcf STATUS,Z
 goto espera 
 
-COMPARA
+COMPARA; compara el estado de la posiscion y imprime el abecedario correctamente
 movfw ESTADO_ABC
 movwf ANT_ESTADO_ABC
 
@@ -657,7 +704,8 @@ btfsc STATUS,Z
 goto pz
 
 
- 
+;Si el estado es 1 imprime e la primera linea apuntando a la letra a 
+; y tambien el numero de intentos
 pa
 call borrarlcd
 bsf INTCON, RBIE
@@ -1257,6 +1305,8 @@ call lvacio
 call IMPRIMIRSEGUNDALINEA
 goto espera
  
+ 
+; Intrucciones para imprimir X letra o caracter
 la
 bsf PORTB,RS
 movlw "A"
@@ -1591,14 +1641,14 @@ call RETARDO
 return
  
  
-RETARDO
+RETARDO; retardo que necesita la lcd para imprimir un caracter
 call RETARDO10NOP
 call RETARDO10NOP
 call RETARDO10NOP
 call RETARDO10NOP
 return
  
-numintentos
+numintentos; imprimir el numero de intentos
 movlw D'1';
 subwf INTENTO,0
 btfsc STATUS,Z
@@ -1629,7 +1679,7 @@ btfsc STATUS,Z
 goto l7
 return 
  
-borrarlcd
+borrarlcd; aunque se llame borrar solo cambia el puntero a la primera posicion
 bcf PORTB,RS
 movlw b'10000000'
 movwf PORTD
@@ -1639,7 +1689,7 @@ bsf PORTB,RS
 call RETARDOLARGO
 return
  
-RETARDOLARGO
+RETARDOLARGO; retardo que necesita la lcd para borrar LCD o cambiar puntero
 bcf INTCON,2
 bcf STATUS,RP1
 bsf STATUS,RP0;Banco 1 
@@ -1658,7 +1708,7 @@ bcf STATUS,RP0;Banco 0
  movwf TMR0
 return
  
-RETARDO10NOP
+RETARDO10NOP; retardo con nop
  nop
  nop
  nop
@@ -1671,14 +1721,14 @@ RETARDO10NOP
  nop
 return
  
-IMPRIMIRSEGUNDALINEA 
+IMPRIMIRSEGUNDALINEA ; imprimie la segunda linea
 movlw D'0';
 subwf INSERTAOADIVINA,0
 btfsc STATUS,Z
 call SEGUNDAINSERTAR
 return  
  
-SEGUNDAINSERTAR
+SEGUNDAINSERTAR; imprime la segunda lineas si se esta insertando la palabra
 bcf PORTB,RS
 movlw b'11000000'
 movwf PORTD
@@ -1738,7 +1788,8 @@ return
  
  
  
-SEGUNDAADIVINAR
+SEGUNDAADIVINAR; imprime la segunda lineas si se esta adivinando la palabra
+; ademas checa si le atinaron a la letra
 bcf STATUS,Z
 movlw D'0'
 subwf EPOS1,0
@@ -1762,6 +1813,7 @@ goto S1
 movlw d'1' 
 movwf EPOS1
 S1
+
  
 bcf STATUS,Z
 movlw D'0'
@@ -2128,7 +2180,7 @@ goto REGRESO5
  
 
  
-SEGUNDAADIVINARCICLO
+SEGUNDAADIVINARCICLO; si adivina la letra la imprime
 bcf STATUS,Z
 movfw COMP
 subwf ESTADO_ABC,0
@@ -2139,16 +2191,18 @@ goto SIES
 SIES
 bcf STATUS,Z
 movlw D'1'
-movwf ACIERTA 
+movwf ACIERTA
+movwf ADIVINATOTAL
 movfw COMP
 movwf CHECAPOST
 call CHECA
-NOES
+
+NOES 
 return 
  
  
  
-CHECA
+CHECA;Esta subrutina imprime la letra que este contenida en CHECAPOST
  bcf STATUS,Z
 movlw D'0';
 subwf CHECAPOST,0
@@ -2313,4 +2367,4 @@ call lz
 bcf STATUS,Z
 return
  
-END
+END;Fin del pograma
